@@ -1,5 +1,2 @@
-requests>=2.31.0
-# Optional LLM providers (choose based on your preference)
-# openai>=1.0.0           # For OpenAI GPT models
-# anthropic>=0.3.0        # For Anthropic Claude models
-# For local LLMs, install Ollama: https://ollama.ai/ 
+a2a-sdk==0.2.10
+requests>=2.32.0

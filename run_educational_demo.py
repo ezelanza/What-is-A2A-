@@ -11,9 +11,10 @@ import sys
 import os
 
 def main():
-    print("🎓 A2A Protocol Educational Demo Launcher")
-    print("=" * 45)
-    print("This will show you the ACTUAL A2A protocol in action!")
+    print("🎓 Interactive A2A Protocol Educational Demo Launcher")
+    print("=" * 52)
+    print("Ask YOUR OWN question and see the ACTUAL A2A protocol in action!")
+    print("Watch agents communicate to answer YOUR specific request!")
     print()
     
     # Check if Ollama is running
@@ -44,8 +45,9 @@ def main():
         print("Demo cancelled.")
         return
     
-    print("\n🎓 Starting Educational A2A Protocol Demonstration...")
-    print("📚 You'll learn how agents communicate using real A2A messages!")
+    print("\n🎓 Starting Interactive Educational A2A Protocol Demo...")
+    print("📚 You'll ask a question and see how agents communicate with real A2A messages!")
+    print("💬 Watch the complete flow from YOUR question to the final answer!")
     print()
     
     # Run the educational demo
