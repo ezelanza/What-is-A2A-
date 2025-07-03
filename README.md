@@ -27,7 +27,7 @@ This is a complete working implementation of the **A2A (Agent-to-Agent) Protocol
 
 ```bash
 # Create virtual environment
-python -m venv venv
+python -m venv a2a_demo
 
 # Activate it
 # On macOS/Linux:
