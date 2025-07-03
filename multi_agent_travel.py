@@ -535,6 +535,125 @@ def start_agent(agent_class):
     
     serve_with_shutdown()
 
+class InterfaceAgent(A2AAgent):
+    """Smart Interface Agent - Natural language entry point that coordinates with other agents via A2A"""
+    
+    def __init__(self):
+        super().__init__("InterfaceAgent", 8000, [
+            "natural_language_processing", "agent_coordination", "user_interface"
+        ])
+        
+    def process_message(self, message_text, context_id=None):
+        """Process user input and intelligently coordinate with appropriate agents"""
+        # Analyze user intent from natural language
+        intent_analysis = self.analyze_user_intent(message_text)
+        
+        if intent_analysis["requires_coordination"]:
+            return self.coordinate_multi_agent_response(message_text, intent_analysis, context_id)
+        else:
+            return self.handle_single_agent_request(message_text, intent_analysis, context_id)
+    
+    def analyze_user_intent(self, message_text):
+        """Analyze user message to understand intent and determine which agents are needed"""
+        text = message_text.lower()
+        
+        # Travel-related keywords
+        travel_keywords = ["trip", "travel", "vacation", "flight", "hotel", "book", "destination", "visit", "journey"]
+        calendar_keywords = ["available", "schedule", "calendar", "free", "busy", "meeting", "appointment", "date", "time"]
+        expense_keywords = ["budget", "cost", "expense", "money", "pay", "price", "afford", "spend", "financial"]
+        weather_keywords = ["weather", "temperature", "rain", "sunny", "forecast", "pack", "clothing", "climate"]
+        
+        # Determine which agents might be needed
+        needs_travel = any(keyword in text for keyword in travel_keywords)
+        needs_calendar = any(keyword in text for keyword in calendar_keywords)
+        needs_expense = any(keyword in text for keyword in expense_keywords) 
+        needs_weather = any(keyword in text for keyword in weather_keywords)
+        
+        # Detect complex trip planning requests
+        trip_planning_phrases = ["plan a trip", "book a trip", "organize travel", "vacation planning", "business trip"]
+        is_trip_planning = any(phrase in text for phrase in trip_planning_phrases)
+        
+        if is_trip_planning or (needs_travel and (needs_calendar or needs_expense or needs_weather)):
+            return {
+                "type": "trip_planning",
+                "requires_coordination": True,
+                "agents_needed": ["TravelAgent", "CalendarAgent", "ExpenseAgent", "WeatherAgent"],
+                "primary_agent": "TravelAgent"
+            }
+        elif needs_calendar:
+            return {
+                "type": "calendar_query", 
+                "requires_coordination": False,
+                "agents_needed": ["CalendarAgent"],
+                "primary_agent": "CalendarAgent"
+            }
+        elif needs_expense:
+            return {
+                "type": "expense_query",
+                "requires_coordination": False, 
+                "agents_needed": ["ExpenseAgent"],
+                "primary_agent": "ExpenseAgent"
+            }
+        elif needs_weather:
+            return {
+                "type": "weather_query",
+                "requires_coordination": False,
+                "agents_needed": ["WeatherAgent"], 
+                "primary_agent": "WeatherAgent"
+            }
+        elif needs_travel:
+            return {
+                "type": "travel_query",
+                "requires_coordination": False,
+                "agents_needed": ["TravelAgent"],
+                "primary_agent": "TravelAgent"
+            }
+        else:
+            return {
+                "type": "general_query",
+                "requires_coordination": False,
+                "agents_needed": ["TravelAgent"],  # Default to travel agent for ambiguous requests
+                "primary_agent": "TravelAgent"
+            }
+    
+    def coordinate_multi_agent_response(self, message_text, intent_analysis, context_id):
+        """Coordinate with multiple agents for complex requests"""
+        print(f"[InterfaceAgent] Detected {intent_analysis['type']} - coordinating with multiple agents...")
+        
+        # Send to primary agent (usually TravelAgent for trip planning)
+        primary_agent = intent_analysis["primary_agent"]
+        enhanced_message = f"User request: {message_text}\n\nThis is a complex request requiring coordination with other agents. Please coordinate with CalendarAgent, ExpenseAgent, and WeatherAgent as needed."
+        
+        response = self.send_message_to_agent(primary_agent, enhanced_message, context_id)
+        
+        return f"MULTI-AGENT COORDINATION INITIATED\n\nYour request has been routed to {primary_agent} who will coordinate with other specialized agents to provide a comprehensive response.\n\n{self.extract_response_text(response)}"
+    
+    def handle_single_agent_request(self, message_text, intent_analysis, context_id):
+        """Handle requests that can be satisfied by a single agent"""
+        target_agent = intent_analysis["primary_agent"]
+        print(f"[InterfaceAgent] Routing to {target_agent} for {intent_analysis['type']}")
+        
+        response = self.send_message_to_agent(target_agent, message_text, context_id)
+        return self.extract_response_text(response)
+    
+    def extract_response_text(self, agent_response):
+        """Extract text from agent response"""
+        if isinstance(agent_response, str):
+            return agent_response
+            
+        if "error" in agent_response:
+            return f"Error: {agent_response['error']}"
+        
+        # Look for agent response in history
+        history = agent_response.get("history", [])
+        for message in reversed(history):
+            if message.get("role") == "agent":
+                for part in message.get("parts", []):
+                    if part.get("kind") == "text":
+                        return part.get("text", "No response")
+        
+        return "No response received"
+
 class InteractiveClient:
     """Interactive client for multi-agent system"""
     
@@ -543,20 +662,9 @@ class InteractiveClient:
         self.conversation_history = []
         self.shutdown_requested = False
         
-    def send_message_to_agent(self, agent_name, message_text):
-        """Send message to a specific agent"""
-        port_map = {
-            "TravelAgent": 8001,
-            "CalendarAgent": 8002, 
-            "ExpenseAgent": 8003,
-            "WeatherAgent": 8004
-        }
-        
-        port = port_map.get(agent_name)
-        if not port:
-            return f"ERROR: Unknown agent: {agent_name}"
-        
-        url = f"http://localhost:{port}/a2a/v1/"
+    def send_message_to_interface_agent(self, message_text):
+        """Send message to the Interface Agent which will handle routing"""
+        url = "http://localhost:8000/a2a/v1/"
         
         request_data = {
             "jsonrpc": "2.0",
@@ -573,7 +681,7 @@ class InteractiveClient:
         }
         
         try:
-            response = requests.post(url, json=request_data, timeout=10)
+            response = requests.post(url, json=request_data, timeout=15)
             if response.status_code == 200:
                 result = response.json().get("result", {})
                 
@@ -593,44 +701,53 @@ class InteractiveClient:
             return f"ERROR: Connection error: {e}"
     
     def show_agent_menu(self):
-        """Show available agents"""
-        print("\nAvailable Agents:")
-        print("1. TravelAgent   - Trip planning and coordination")
-        print("2. CalendarAgent - Schedule management")
-        print("3. ExpenseAgent  - Budget and expense tracking") 
-        print("4. WeatherAgent  - Weather forecasts")
-        print("5. Smart Mode    - Talk to Travel Agent (auto-coordinates with others)")
+        """Show available agents and natural language capabilities"""
+        print("\nIntelligent A2A System - Natural Language Interface")
+        print("Just speak naturally! The system will automatically coordinate with the right agents.")
+        print("\nAgent Capabilities:")
+        print("• InterfaceAgent - Smart routing and coordination (port 8000)")
+        print("• TravelAgent    - Trip planning and coordination (port 8001)")
+        print("• CalendarAgent  - Schedule management (port 8002)")
+        print("• ExpenseAgent   - Budget and expense tracking (port 8003)")
+        print("• WeatherAgent   - Weather forecasts (port 8004)")
         print("\nCommands: 'help', 'agents', 'history', 'clear', 'quit'")
     
     def show_help(self):
         """Show help information"""
         help_text = """
-HELP - Multi-Agent A2A System
+HELP - Intelligent A2A System with Natural Language
 
-SMART MODE (Recommended):
-  - Type: "smart I want to plan a trip to Paris"
-  - Travel Agent will automatically coordinate with other agents
-  - Watch real-time multi-agent collaboration!
+NATURAL LANGUAGE INTERFACE:
+  Just speak naturally! No keywords needed. The Interface Agent will analyze
+  your intent and automatically coordinate with the appropriate specialist agents.
 
-DIRECT AGENT COMMUNICATION:
-  - Type: "travel book a trip to Tokyo"
-  - Type: "calendar check my availability" 
-  - Type: "expense what's my budget?"
-  - Type: "weather forecast for London"
+TRIP PLANNING EXAMPLES:
+  • "I want to plan a business trip to London for 3 days"
+  • "Can you help me organize a vacation to Paris?"
+  • "I need to book travel to Tokyo next month"
+  • "Plan a weekend getaway somewhere warm"
 
-EXAMPLE CONVERSATIONS:
-  • "smart plan a business trip to London for 3 days"
-  • "travel I need help planning a vacation"
-  • "calendar when am I free next month?"
-  • "expense can I spend $2000 on travel?"
-  • "weather what should I pack for London in April?"
+SPECIFIC QUERIES:
+  • "When am I free next month?" (→ Calendar Agent)
+  • "What's my travel budget?" (→ Expense Agent)  
+  • "What's the weather like in London?" (→ Weather Agent)
+  • "Find me a flight to New York" (→ Travel Agent)
 
-WATCH THE COLLABORATION:
-  When you use smart mode, you'll see agents talking to each other:
+HOW IT WORKS:
+  1. You speak naturally to the Interface Agent (no keywords!)
+  2. It analyzes your intent using natural language processing
+  3. It automatically discovers and coordinates with relevant agents
+  4. Agents collaborate peer-to-peer using A2A protocol
+  5. You get a comprehensive response
+
+WATCH THE MAGIC:
+  Complex requests trigger multi-agent coordination:
+  [Interface→Travel] "User wants trip to London..."
   [Travel→Calendar] "Check availability..."
   [Calendar→Travel] "April 15-17 is free!"
   [Travel→Expense] "Budget check for $2000..."
   [Expense→Travel] "Approved!"
+  [Travel→Weather] "Weather forecast needed..."
 
 COMMANDS:
   'help'    - Show this help
@@ -638,14 +755,21 @@ COMMANDS:
   'history' - Show conversation history
   'clear'   - Clear history
   'quit'    - Exit system and stop all agents
+
+EXAMPLES TO TRY:
+  • "I need help planning a trip to Italy"
+  • "Check if I'm available for travel next week"
+  • "How much can I spend on vacation?"
+  • "Should I pack warm clothes for London in March?"
         """
         print(help_text)
     
     def interactive_chat(self):
-        """Start interactive chat with multi-agent system"""
-        print("Welcome! You can chat with 4 specialized agents that work together.")
-        print("Try 'smart plan a trip to London' to see multi-agent collaboration!")
-        print("Type 'help' for detailed instructions and examples.")
+        """Start interactive chat with intelligent multi-agent system"""
+        print("Welcome to the Intelligent A2A System!")
+        print("Just speak naturally - no keywords needed. The system will automatically")
+        print("coordinate with the right agents based on your request.")
+        print("Type 'help' for examples and detailed instructions.")
         
         self.show_agent_menu()
         
@@ -678,8 +802,8 @@ COMMANDS:
                     if self.conversation_history:
                         print("\nConversation History:")
                         for i, entry in enumerate(self.conversation_history, 1):
-                            print(f"{i}. You → {entry['agent']}: {entry['input']}")
-                            print(f"   {entry['agent']} → You: {entry['response'][:100]}...")
+                            print(f"{i}. You: {entry['input']}")
+                            print(f"   System: {entry['response'][:100]}...")
                     else:
                         print("No conversation history yet.")
                     continue
@@ -690,61 +814,28 @@ COMMANDS:
                     print("History cleared and new context started.")
                     continue
                 
-                # Parse agent commands
-                parts = user_input.split(' ', 1)
-                if len(parts) < 2:
-                    print("Please specify an agent and message. Examples:")
-                    print("   'smart plan a trip to Paris'")
-                    print("   'travel help me book a flight'")
-                    print("   'calendar check my schedule'")
-                    continue
+                # Send natural language input to Interface Agent
+                print("Processing your request...")
+                print("The Interface Agent will analyze your intent and coordinate with appropriate agents...")
                 
-                agent_key = parts[0].lower()
-                message = parts[1]
+                # Send message to Interface Agent for intelligent routing
+                response = self.send_message_to_interface_agent(user_input)
                 
-                # Map user-friendly names to agent names
-                agent_map = {
-                    'travel': 'TravelAgent',
-                    'calendar': 'CalendarAgent', 
-                    'expense': 'ExpenseAgent',
-                    'weather': 'WeatherAgent',
-                    'smart': 'TravelAgent'  # Smart mode uses Travel Agent as coordinator
-                }
-                
-                agent_name = agent_map.get(agent_key)
-                if not agent_name:
-                    print(f"Unknown agent '{agent_key}'. Use: travel, calendar, expense, weather, or smart")
-                    continue
-                
-                # Add special smart mode message
-                if agent_key == 'smart':
-                    print(f"SMART MODE: Sending to Travel Agent (will coordinate with others)")
-                    print(f"Message: {message}")
-                    print("Watch for multi-agent collaboration below...")
-                else:
-                    print(f"Sending to {agent_name}: {message}")
-                
-                print("Processing...")
-                
-                # Send message to agent
-                response = self.send_message_to_agent(agent_name, message)
-                
-                print(f"\n{agent_name} Response:")
+                print(f"\nSystem Response:")
                 print("─" * 30)
                 print(response)
                 
                 # Store in history
                 self.conversation_history.append({
-                    'agent': agent_name,
-                    'input': message,
+                    'input': user_input,
                     'response': response
                 })
                 
-                # Show tip for smart mode
-                if agent_key == 'smart' and "TRIP PLANNING COMPLETE" in response:
-                    print("\nTIP: You just saw 4 agents collaborate automatically!")
-                    print("   Travel Agent coordinated with Calendar, Expense, and Weather agents.")
-                    print("   All communication happened peer-to-peer using A2A protocol!")
+                # Show tip for multi-agent coordination
+                if "MULTI-AGENT COORDINATION" in response:
+                    print("\nNOTE: You just triggered multi-agent coordination!")
+                    print("   The Interface Agent detected a complex request and coordinated")
+                    print("   with multiple specialist agents using pure A2A protocol.")
                 
             except KeyboardInterrupt:
                 print("\nGoodbye! Shutting down agents...")
@@ -772,11 +863,11 @@ def shutdown_all_agents():
 
 def start_multi_agent_system():
     """Start all agents and interactive interface"""
-    print("Multi-Agent A2A System Starting...")
+    print("Intelligent Multi-Agent A2A System Starting...")
     print("=" * 50)
     
-    # List of agent classes
-    agent_classes = [TravelAgent, CalendarAgent, ExpenseAgent, WeatherAgent]
+    # List of agent classes - Interface Agent first, then specialists
+    agent_classes = [InterfaceAgent, TravelAgent, CalendarAgent, ExpenseAgent, WeatherAgent]
     
     # Start each agent in a separate thread
     threads = []
@@ -789,14 +880,15 @@ def start_multi_agent_system():
     
     # Give agents time to start
     print("Waiting for all agents to start...")
-    time.sleep(3)
+    time.sleep(4)  # Extra time for 5 agents
     
     print("All agents are running!")
-    print("These are the Agent endpoints available for you to use:")
-    print("   Travel Agent:   http://localhost:8001")
-    print("   Calendar Agent: http://localhost:8002") 
-    print("   Expense Agent:  http://localhost:8003")
-    print("   Weather Agent:  http://localhost:8004")
+    print("Intelligent A2A System ready with natural language processing:")
+    print("   Interface Agent: http://localhost:8000 (Smart routing & coordination)")
+    print("   Travel Agent:    http://localhost:8001 (Trip planning)")
+    print("   Calendar Agent:  http://localhost:8002 (Schedule management)") 
+    print("   Expense Agent:   http://localhost:8003 (Budget tracking)")
+    print("   Weather Agent:   http://localhost:8004 (Weather forecasts)")
     
     # Start interactive interface
     try:
@@ -808,12 +900,12 @@ def start_multi_agent_system():
         shutdown_all_agents()
 
 def start_demo_mode():
-    """Run the original scripted demo"""
-    print("Running Original Scripted Demo...")
+    """Run the intelligent A2A demo"""
+    print("Running Intelligent A2A Demo...")
     print("=" * 50)
     
-    # List of agent classes
-    agent_classes = [TravelAgent, CalendarAgent, ExpenseAgent, WeatherAgent]
+    # List of agent classes including Interface Agent
+    agent_classes = [InterfaceAgent, TravelAgent, CalendarAgent, ExpenseAgent, WeatherAgent]
     
     # Start each agent in a separate thread
     threads = []
@@ -826,23 +918,24 @@ def start_demo_mode():
     
     # Give agents time to start
     print("Waiting for all agents to start...")
-    time.sleep(3)
+    time.sleep(4)
     
-    # Create a travel agent client to trigger the workflow
-    travel_agent = TravelAgent()
+    # Create an interface agent client to trigger the workflow
+    interface_agent = InterfaceAgent()
     
-    # Simulate user request
-    print("User Request: 'Book a trip to London for 3 days'")
-    print("\nAgents collaborating...")
+    # Simulate user request using natural language
+    print("User Request: 'I want to plan a business trip to London for 3 days'")
+    print("\nInterface Agent analyzing intent and coordinating with specialists...")
     
-    result = travel_agent.process_message("book trip to London for 3 days", str(uuid.uuid4()))
+    result = interface_agent.process_message("I want to plan a business trip to London for 3 days", str(uuid.uuid4()))
     
     print("\nFINAL RESULT:")
     print("=" * 50)
     print(result)
     
-    print("\nMulti-agent collaboration complete!")
-    print("All 4 agents worked together without a supervisor!")
+    print("\nIntelligent multi-agent collaboration complete!")
+    print("The Interface Agent used natural language processing to coordinate")
+    print("with 4 specialist agents without any central supervisor!")
     print("\nPress Ctrl+C to stop all agents...")
     
     try:
@@ -856,11 +949,12 @@ def start_demo_mode():
 
 def main():
     """Main function - choose interactive or demo mode"""
-    print("Multi-Agent A2A Protocol System")
-    print("=" * 40)
-    print("Choose mode:")
-    print("1. Interactive Mode (Recommended) - Chat with agents in real-time")
-    print("2. Demo Mode - Run original scripted demo")
+    print("Intelligent Multi-Agent A2A Protocol System")
+    print("=" * 45)
+    print("Revolutionary peer-to-peer agent coordination with natural language!")
+    print("\nChoose mode:")
+    print("1. Interactive Mode (Recommended) - Natural language chat")
+    print("2. Demo Mode - Automated intelligent coordination demo")
     
     while True:
         try:
