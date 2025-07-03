@@ -1,31 +1,112 @@
 # A2A Protocol Demo
 
-This is a complete working implementation of the **A2A (Agent-to-Agent) Protocol** developed by Google. It demonstrates how AI agents can communicate with each other using standardized JSON-RPC messages.
+This is a complete working implementation of the **A2A (Agent-to-Agent) Protocol**. It demonstrates how AI agents can communicate with each other using standardized JSON-RPC messages.
 
 ## What's Included
 
-1. **`a2a_agent_server.py`** - A simple AI agent server that implements the A2A protocol
-2. **`a2a_client.py`** - A client that can communicate with A2A agents
-3. **`requirements.txt`** - Python dependencies
+1. **`multi_agent_travel.py`** - **🌟 Multi-Agent Demo**: Four specialized agents that collaborate peer-to-peer (Travel, Calendar, Expense, Weather)
+2. **`a2a_agent_server.py`** - A simple AI agent server that implements the A2A protocol
+3. **`a2a_client.py`** - A client that can communicate with A2A agents
+4. **`requirements.txt`** - Python dependencies
 
 ## Features Demonstrated
 
-✅ **Agent Discovery** - Find agents and their capabilities  
+✅ **Multi-Agent Collaboration** - **NO SUPERVISOR NEEDED!** Four agents work together peer-to-peer  
+✅ **Agent Discovery** - Agents find and communicate with each other automatically  
 ✅ **JSON-RPC Communication** - Standard A2A message format  
 ✅ **Task Management** - Create, monitor, and cancel tasks  
 ✅ **Context Continuity** - Multi-turn conversations  
 ✅ **Real-time Interaction** - Interactive chat sessions  
 ✅ **Error Handling** - Proper A2A error responses  
 
-## Quick Start
+## 🌟 Multi-Agent Demo (Recommended)
 
-### 1. Install Dependencies
+**Four agents collaborate without a supervisor to plan your trip!**
+
+### Setup Virtual Environment
+
+```bash
+# Create virtual environment
+python -m venv venv
+
+# Activate it
+# On macOS/Linux:
+source venv/bin/activate
+# On Windows:
+venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### Run the Multi-Agent System
+
+```bash
+python multi_agent_travel.py
+```
+
+**What you'll see:**
+```
+🤖 Multi-Agent A2A System Starting...
+🚀 TravelAgent starting on http://localhost:8001
+🚀 CalendarAgent starting on http://localhost:8002  
+🚀 ExpenseAgent starting on http://localhost:8003
+🚀 WeatherAgent starting on http://localhost:8004
+
+🎭 Running Multi-Agent Trip Planning Demo...
+👤 User Request: 'Book a trip to London for 3 days'
+
+🔄 Agents collaborating...
+
+📋 FINAL RESULT:
+🛫 TRIP PLANNING COMPLETE 🛫
+
+📅 AVAILABILITY (from Calendar Agent):
+✅ April 15-17: No conflicts
+✅ May 8-10: Minor meeting (moveable)
+
+💰 BUDGET APPROVAL (from Expense Agent):  
+✅ Status: APPROVED
+💳 Available Budget: $5,000
+📊 Estimated Cost: $2000
+
+🌤️ WEATHER FORECAST (from Weather Agent):
+🌤️ Day 1: Partly cloudy, 16°C
+🌧️ Day 2: Light rain, 14°C  
+☀️ Day 3: Sunny, 18°C
+
+✅ All agents coordinated successfully! No supervisor needed!
+```
+
+**The Magic:** 
+- **Travel Agent** receives your request and coordinates everything
+- **Calendar Agent** checks your availability independently  
+- **Expense Agent** validates budget and policy compliance
+- **Weather Agent** provides forecast and packing recommendations
+- **All communicate peer-to-peer** using A2A protocol - no central coordinator!
+
+## Quick Start (Simple Client-Server Demo)
+
+### 1. Create Virtual Environment
+
+```bash
+# Create virtual environment
+python -m venv venv
+
+# Activate it
+# On macOS/Linux:
+source venv/bin/activate
+# On Windows:
+venv\Scripts\activate
+```
+
+### 2. Install Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Start the Agent Server
+### 3. Start the Agent Server
 
 In one terminal window:
 
@@ -40,7 +121,7 @@ INFO:__main__:Agent Card available at: http://localhost:8000/.well-known/agent.j
 INFO:__main__:A2A endpoint: http://localhost:8000/a2a/v1/
 ```
 
-### 3. Run the Client
+### 4. Run the Client
 
 In another terminal window:
 
@@ -214,21 +295,63 @@ curl -X POST http://localhost:8000/a2a/v1/ \
 
 ## Architecture
 
+### Multi-Agent System (No Supervisor!)
+```
+         🌤️ Weather Agent    💰 Expense Agent
+              (Port 8004)        (Port 8003)
+                    ↕                ↕
+                    ╰────────┬────────╯
+                             │ A2A Protocol
+          📅 Calendar Agent  │  🛫 Travel Agent
+              (Port 8002) ←──┼──→ (Port 8001)
+                             │  [Coordinator]
+                    ╭────────┴────────╮
+                    ↕                ↕
+              👤 User Input    📋 Final Result
+
+All agents communicate peer-to-peer using A2A JSON-RPC protocol
+```
+
+### Traditional Client-Server (Simple Demo)
 ```
 ┌─────────────────┐       A2A Protocol       ┌─────────────────┐
-│                 │   (JSON-RPC over HTTP)   │                 │
 │   A2A Client    │ ←-------------------→    │   A2A Agent     │
-│                 │                          │    Server       │
-└─────────────────┘                          └─────────────────┘
-        │                                             │
-        │                                             │
-        ▼                                             ▼
-┌─────────────────┐                          ┌─────────────────┐
-│ • Agent Discovery│                          │ • Task Manager  │
-│ • Message Sending│                          │ • AI Processing │
-│ • Task Monitoring│                          │ • Context Mgmt  │
+│                 │   (JSON-RPC over HTTP)   │    Server       │
 └─────────────────┘                          └─────────────────┘
 ```
+
+## 🤖 Multi-Agent Collaboration Features
+
+### Why This is Revolutionary:
+1. **🔍 Peer-to-Peer Discovery** - Agents find each other automatically, no central registry needed
+2. **🚫 No Supervisor Required** - Agents coordinate directly without a master controller  
+3. **🧠 Specialized Intelligence** - Each agent is an expert in its domain
+4. **🔄 Dynamic Workflow** - Travel Agent orchestrates by calling others as needed
+5. **📡 Real A2A Communication** - All inter-agent messages use proper A2A protocol
+6. **🔧 Modular & Scalable** - Add/remove agents without changing others
+
+### Agent Specializations:
+- **🛫 Travel Agent** → Trip planning, booking coordination  
+- **📅 Calendar Agent** → Schedule management, availability checking
+- **💰 Expense Agent** → Budget validation, policy compliance
+- **🌤️ Weather Agent** → Forecasts, packing recommendations
+
+### The Workflow Magic:
+```
+1. User: "Book trip to London"
+2. Travel Agent discovers Calendar Agent 
+3. Travel Agent asks: "Available dates?"
+4. Calendar Agent responds with free slots
+5. Travel Agent discovers Expense Agent
+6. Travel Agent asks: "Budget approved for $2000?"
+7. Expense Agent validates and approves
+8. Travel Agent discovers Weather Agent  
+9. Travel Agent asks: "London weather forecast?"
+10. Weather Agent provides detailed forecast
+11. Travel Agent compiles everything into final plan
+```
+
+**Result:** Complex multi-agent workflow with ZERO central coordination! 🎯
 
 ## What Makes This A2A Compliant
 
@@ -238,6 +361,7 @@ curl -X POST http://localhost:8000/a2a/v1/ \
 4. **Task Management** - Full task lifecycle with proper states
 5. **Context Continuity** - Conversations maintain context across messages
 6. **Error Handling** - Standard JSON-RPC error responses
+7. **🆕 Multi-Agent Orchestration** - Agents can discover and communicate with each other
 
 ## Extending the Demo
 
