@@ -28,6 +28,92 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 running_servers = []
 shutdown_event = threading.Event()
 
+# LLM Configuration
+LLM_CONFIG = {
+    "provider": "ollama",  # Options: "ollama", "openai", "anthropic"
+    "model": "llama3.2:3b",  # Local model for privacy and no API costs
+    "base_url": "http://localhost:11434",  # Ollama default URL
+    "api_key": None  # Not needed for Ollama
+}
+
+class LLMInterface:
+    """Universal LLM interface supporting multiple providers"""
+    
+    def __init__(self, config=None):
+        self.config = config or LLM_CONFIG
+        
+    def query_llm(self, prompt, system_prompt=None):
+        """Query the configured LLM with a prompt"""
+        try:
+            if self.config["provider"] == "ollama":
+                return self._query_ollama(prompt, system_prompt)
+            elif self.config["provider"] == "openai":
+                return self._query_openai(prompt, system_prompt)
+            elif self.config["provider"] == "anthropic":
+                return self._query_anthropic(prompt, system_prompt)
+            else:
+                return f"Error: Unsupported LLM provider: {self.config['provider']}"
+        except Exception as e:
+            return f"LLM Error: {str(e)} - Falling back to basic analysis"
+    
+    def _query_ollama(self, prompt, system_prompt=None):
+        """Query Ollama local LLM"""
+        url = f"{self.config['base_url']}/api/generate"
+        
+        full_prompt = prompt
+        if system_prompt:
+            full_prompt = f"System: {system_prompt}\n\nUser: {prompt}"
+            
+        payload = {
+            "model": self.config["model"],
+            "prompt": full_prompt,
+            "stream": False
+        }
+        
+        response = requests.post(url, json=payload, timeout=30)
+        if response.status_code == 200:
+            return response.json().get("response", "No response")
+        else:
+            raise Exception(f"Ollama HTTP {response.status_code}")
+    
+    def _query_openai(self, prompt, system_prompt=None):
+        """Query OpenAI API (requires openai package)"""
+        try:
+            import openai
+            openai.api_key = self.config["api_key"]
+            
+            messages = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+            messages.append({"role": "user", "content": prompt})
+            
+            response = openai.ChatCompletion.create(
+                model=self.config["model"],
+                messages=messages
+            )
+            return response.choices[0].message.content
+        except ImportError:
+            raise Exception("OpenAI package not installed. Install with: pip install openai")
+    
+    def _query_anthropic(self, prompt, system_prompt=None):
+        """Query Anthropic Claude API (requires anthropic package)"""
+        try:
+            import anthropic
+            client = anthropic.Anthropic(api_key=self.config["api_key"])
+            
+            full_prompt = prompt
+            if system_prompt:
+                full_prompt = f"System: {system_prompt}\n\nHuman: {prompt}"
+            
+            response = client.completions.create(
+                model=self.config["model"],
+                prompt=full_prompt,
+                max_tokens_to_sample=1000
+            )
+            return response.completion
+        except ImportError:
+            raise Exception("Anthropic package not installed. Install with: pip install anthropic")
+
 class AgentRegistry:
     """Registry for agents to discover each other"""
     def __init__(self):
@@ -42,8 +128,9 @@ class AgentRegistry:
     def list_agents(self):
         return self.agents
 
-# Global registry for agent discovery
+# Global instances
 registry = AgentRegistry()
+llm = LLMInterface()
 
 class A2AAgent:
     """Base class for A2A agents"""
@@ -554,66 +641,106 @@ class InterfaceAgent(A2AAgent):
             return self.handle_single_agent_request(message_text, intent_analysis, context_id)
     
     def analyze_user_intent(self, message_text):
-        """Analyze user message to understand intent and determine which agents are needed"""
+        """Use LLM to intelligently analyze user intent and determine agent coordination needs"""
+        
+        system_prompt = """You are an intelligent A2A (Agent-to-Agent) routing system. Analyze user requests and determine which specialized agents should handle them.
+
+Available Agents:
+- TravelAgent: Trip planning, booking flights/hotels, travel coordination
+- CalendarAgent: Schedule management, availability checking, appointment booking
+- ExpenseAgent: Budget analysis, expense tracking, financial approval
+- WeatherAgent: Weather forecasts, packing advice, climate information
+
+Your task is to analyze the user's request and respond with ONLY a JSON object (no other text) in this exact format:
+
+{
+    "type": "query_type",
+    "requires_coordination": true/false,
+    "agents_needed": ["Agent1", "Agent2"],
+    "primary_agent": "PrimaryAgent",
+    "reasoning": "Brief explanation of decision"
+}
+
+Rules:
+- If the request involves complex trip planning, vacation planning, or business travel, set requires_coordination=true and include all relevant agents
+- For simple single-topic queries, set requires_coordination=false and use only the relevant agent
+- Always include TravelAgent as primary for trip planning
+- For ambiguous requests, default to TravelAgent but set requires_coordination=false"""
+
+        prompt = f"Analyze this user request: '{message_text}'"
+        
+        try:
+            llm_response = llm.query_llm(prompt, system_prompt)
+            
+            # Extract JSON from response (in case LLM adds extra text)
+            json_start = llm_response.find('{')
+            json_end = llm_response.rfind('}') + 1
+            
+            if json_start >= 0 and json_end > json_start:
+                json_str = llm_response[json_start:json_end]
+                intent_analysis = json.loads(json_str)
+                
+                # Validate required fields
+                required_fields = ["type", "requires_coordination", "agents_needed", "primary_agent"]
+                if all(field in intent_analysis for field in required_fields):
+                    self.logger.info(f"LLM Intent Analysis: {intent_analysis['reasoning']}")
+                    return intent_analysis
+                    
+        except Exception as e:
+            self.logger.warning(f"LLM analysis failed: {e} - Using fallback analysis")
+        
+        # Fallback to basic analysis if LLM fails
+        return self._fallback_intent_analysis(message_text)
+    
+    def _fallback_intent_analysis(self, message_text):
+        """Simple fallback analysis if LLM is not available"""
         text = message_text.lower()
         
-        # Travel-related keywords
-        travel_keywords = ["trip", "travel", "vacation", "flight", "hotel", "book", "destination", "visit", "journey"]
-        calendar_keywords = ["available", "schedule", "calendar", "free", "busy", "meeting", "appointment", "date", "time"]
-        expense_keywords = ["budget", "cost", "expense", "money", "pay", "price", "afford", "spend", "financial"]
-        weather_keywords = ["weather", "temperature", "rain", "sunny", "forecast", "pack", "clothing", "climate"]
+        # Simple detection for complex requests
+        complex_indicators = ["plan", "organize", "book a trip", "vacation", "business trip", "coordinate"]
+        is_complex = any(indicator in text for indicator in complex_indicators)
         
-        # Determine which agents might be needed
-        needs_travel = any(keyword in text for keyword in travel_keywords)
-        needs_calendar = any(keyword in text for keyword in calendar_keywords)
-        needs_expense = any(keyword in text for keyword in expense_keywords) 
-        needs_weather = any(keyword in text for keyword in weather_keywords)
-        
-        # Detect complex trip planning requests
-        trip_planning_phrases = ["plan a trip", "book a trip", "organize travel", "vacation planning", "business trip"]
-        is_trip_planning = any(phrase in text for phrase in trip_planning_phrases)
-        
-        if is_trip_planning or (needs_travel and (needs_calendar or needs_expense or needs_weather)):
+        if is_complex:
             return {
                 "type": "trip_planning",
                 "requires_coordination": True,
                 "agents_needed": ["TravelAgent", "CalendarAgent", "ExpenseAgent", "WeatherAgent"],
-                "primary_agent": "TravelAgent"
+                "primary_agent": "TravelAgent",
+                "reasoning": "Fallback: Detected complex travel request"
             }
-        elif needs_calendar:
+        
+        # Single agent routing
+        if any(word in text for word in ["calendar", "schedule", "available", "free", "busy"]):
             return {
-                "type": "calendar_query", 
+                "type": "calendar_query",
                 "requires_coordination": False,
                 "agents_needed": ["CalendarAgent"],
-                "primary_agent": "CalendarAgent"
+                "primary_agent": "CalendarAgent",
+                "reasoning": "Fallback: Calendar-related query"
             }
-        elif needs_expense:
+        elif any(word in text for word in ["budget", "cost", "expense", "money", "price"]):
             return {
                 "type": "expense_query",
-                "requires_coordination": False, 
+                "requires_coordination": False,
                 "agents_needed": ["ExpenseAgent"],
-                "primary_agent": "ExpenseAgent"
+                "primary_agent": "ExpenseAgent",
+                "reasoning": "Fallback: Financial query"
             }
-        elif needs_weather:
+        elif any(word in text for word in ["weather", "forecast", "temperature", "rain", "sunny"]):
             return {
                 "type": "weather_query",
                 "requires_coordination": False,
-                "agents_needed": ["WeatherAgent"], 
-                "primary_agent": "WeatherAgent"
-            }
-        elif needs_travel:
-            return {
-                "type": "travel_query",
-                "requires_coordination": False,
-                "agents_needed": ["TravelAgent"],
-                "primary_agent": "TravelAgent"
+                "agents_needed": ["WeatherAgent"],
+                "primary_agent": "WeatherAgent",
+                "reasoning": "Fallback: Weather query"
             }
         else:
             return {
                 "type": "general_query",
                 "requires_coordination": False,
-                "agents_needed": ["TravelAgent"],  # Default to travel agent for ambiguous requests
-                "primary_agent": "TravelAgent"
+                "agents_needed": ["TravelAgent"],
+                "primary_agent": "TravelAgent",
+                "reasoning": "Fallback: Default to travel agent"
             }
     
     def coordinate_multi_agent_response(self, message_text, intent_analysis, context_id):

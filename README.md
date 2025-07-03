@@ -12,12 +12,69 @@ This is a complete working implementation of the **A2A (Agent-to-Agent) Protocol
 ## Features Demonstrated
 
 ✅ **Multi-Agent Collaboration** - **NO SUPERVISOR NEEDED!** Four agents work together peer-to-peer  
+✅ **LLM-Based Intelligence** - **NO HARDCODED RULES!** Uses real AI for understanding and routing  
+✅ **Natural Language Interface** - Speak naturally, no keywords required  
 ✅ **Agent Discovery** - Agents find and communicate with each other automatically  
 ✅ **JSON-RPC Communication** - Standard A2A message format  
 ✅ **Task Management** - Create, monitor, and cancel tasks  
 ✅ **Context Continuity** - Multi-turn conversations  
 ✅ **Real-time Interaction** - Interactive chat sessions  
 ✅ **Error Handling** - Proper A2A error responses  
+
+## 🧠 LLM-Powered Intelligence (NEW!)
+
+**Revolutionary Natural Language Understanding**
+
+This implementation now uses **real LLM intelligence** instead of hardcoded keyword matching! The system can:
+
+- **Understand natural speech** - No need for specific keywords like "plan trip" or "check calendar"
+- **Intelligent routing** - Uses AI to determine which agents should collaborate
+- **Dynamic coordination** - Decides in real-time whether multi-agent coordination is needed
+- **Context awareness** - Understands complex requests and ambiguous language
+- **True A2A spirit** - No hidden supervisors or hardcoded routing rules!
+
+### LLM Configuration
+
+The system supports multiple LLM providers:
+
+```python
+LLM_CONFIG = {
+    "provider": "ollama",           # Options: "ollama", "openai", "anthropic"
+    "model": "llama3.2:3b",        # Local model for privacy
+    "base_url": "http://localhost:11434",  # Ollama URL
+    "api_key": None                 # Not needed for Ollama
+}
+```
+
+**Setup Options:**
+1. **Ollama (Recommended)** - Free, local, private
+   ```bash
+   # Install Ollama: https://ollama.ai/
+   ollama serve
+   ollama pull llama3.2:3b
+   ```
+
+2. **OpenAI** - Requires API key
+   ```bash
+   pip install openai
+   # Set api_key in LLM_CONFIG
+   ```
+
+3. **Anthropic Claude** - Requires API key
+   ```bash
+   pip install anthropic
+   # Set api_key in LLM_CONFIG
+   ```
+
+**Fallback System:** If no LLM is available, the system automatically falls back to basic analysis while maintaining functionality.
+
+### Test LLM Intelligence
+
+```bash
+python test_llm_intelligence.py
+```
+
+This demonstrates how the LLM analyzes natural language requests and makes intelligent routing decisions.
 
 ## 🌟 Multi-Agent Demo (Recommended)
 
@@ -31,7 +88,7 @@ python -m venv a2a_demo
 
 # Activate it
 # On macOS/Linux:
-source venv/bin/activate
+source a2a_demo/bin/activate
 # On Windows:
 venv\Scripts\activate
 
@@ -84,6 +141,34 @@ python multi_agent_travel.py
 - **Expense Agent** validates budget and policy compliance
 - **Weather Agent** provides forecast and packing recommendations
 - **All communicate peer-to-peer** using A2A protocol - no central coordinator!
+
+### Natural Language Examples (LLM-Powered!)
+
+**No keywords needed! Just speak naturally:**
+
+```bash
+# Interactive mode
+python multi_agent_travel.py
+# Choose "Interactive" mode
+
+# Try these natural requests:
+"I'm thinking about a business trip to Tokyo next month"
+"Can you help me plan a romantic getaway to Italy?"
+"What's the weather like in Paris this weekend?"
+"Am I free next Thursday afternoon for a meeting?"
+"How much budget do I have left for travel this quarter?"
+"My boss wants me to organize a team retreat with accommodation"
+```
+
+**OLD vs NEW System:**
+- ❌ **OLD**: Required keywords like "plan trip", "check calendar"
+- ✅ **NEW**: Natural speech like "I'm thinking about visiting somewhere warm"
+
+- ❌ **OLD**: Hardcoded routing rules
+- ✅ **NEW**: LLM intelligently decides which agents to coordinate
+
+- ❌ **OLD**: Essentially created hidden supervisor through keyword matching
+- ✅ **NEW**: True A2A peer-to-peer spirit with intelligent coordination
 
 ## Quick Start (Simple Client-Server Demo)
 
