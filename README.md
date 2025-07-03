@@ -152,6 +152,85 @@ This demonstrates how the LLM analyzes natural language requests and makes intel
 python multi_agent_travel.py
 ```
 
+**Choose from 3 modes:**
+1. **Interactive Mode** - Natural language chat with intelligent agents
+2. **Demo Mode** - Automated coordination demonstration  
+3. **Educational Mode** - Learn A2A protocol step-by-step ⭐
+
+## 🎓 Educational Mode (NEW!)
+
+**See the ACTUAL A2A protocol communication in action!**
+
+### What You'll Learn
+
+The educational demo shows you **exactly** how A2A protocol works:
+
+- 📡 **Agent Discovery** - How agents find each other via Agent Cards
+- 📨 **JSON-RPC 2.0 Messages** - Real A2A message structure
+- 🔄 **Coordination Flow** - Step-by-step multi-agent collaboration  
+- 🧠 **LLM Analysis** - How AI analyzes user intent for routing
+- 🎯 **A2A Nomenclature** - Proper terminology and concepts
+
+### Run Educational Demo
+
+**Easy way (with prerequisite checking):**
+```bash
+python run_educational_demo.py
+```
+
+**Direct way:**
+```bash
+python educational_a2a_demo.py
+```
+
+**Sample Output:**
+```
+🎓 EDUCATIONAL A2A PROTOCOL DEMONSTRATION
+========================================================
+
+📚 STEP 1: STARTING A2A AGENTS
+   1. Starting InterfaceAgent on port 8000
+      → Interface Agent - Smart routing coordinator
+   2. Starting TravelAgent on port 8001
+      → Travel Agent - Trip planning specialist
+
+📚 STEP 2: A2A AGENT DISCOVERY
+🔍 DISCOVERING TravelAgent...
+   📡 HTTP GET → http://localhost:8001/.well-known/agent.json
+   ✅ Agent Card received!
+   📋 Agent Name: TravelAgent
+   🔗 A2A Endpoint: http://localhost:8001/a2a/v1/
+   📨 A2A Methods: message/send, tasks/get, tasks/cancel
+
+📨 A2A MESSAGE #1
+   FROM: InterfaceAgent
+   TO: TravelAgent
+   MESSAGE: "User request: I want to plan a business trip..."
+
+📋 A2A JSON-RPC 2.0 MESSAGE STRUCTURE:
+{
+  "jsonrpc": "2.0",
+  "id": "abc-123-def",
+  "method": "message/send",
+  "params": {
+    "message": {
+      "role": "agent",
+      "parts": [{"kind": "text", "text": "User request..."}],
+      "messageId": "msg-456",
+      "contextId": "ctx-789"
+    }
+  }
+}
+```
+
+### Educational Value
+
+✅ **Real Protocol** - See actual A2A messages, not simulations  
+✅ **Step-by-Step** - Understand each phase of agent coordination  
+✅ **Clean Code** - Simple, readable implementation for learning  
+✅ **Proper Terminology** - Uses official A2A nomenclature  
+✅ **Interactive** - Watch agents communicate in real-time
+
 **What you'll see:**
 ```
 🤖 Multi-Agent A2A System Starting...

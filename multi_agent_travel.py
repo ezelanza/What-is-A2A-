@@ -999,17 +999,18 @@ def start_demo_mode():
         shutdown_all_agents()
 
 def main():
-    """Main function - choose interactive or demo mode"""
+    """Main function - choose interactive, demo, or educational mode"""
     print("Intelligent Multi-Agent A2A Protocol System")
     print("=" * 45)
     print("Revolutionary peer-to-peer agent coordination with natural language!")
     print("\nChoose mode:")
     print("1. Interactive Mode (Recommended) - Natural language chat")
-    print("2. Demo Mode - Automated intelligent coordination demo")
+    print("2. Demo Mode - Automated intelligent coordination demo") 
+    print("3. Educational Mode - Learn A2A protocol step-by-step")
     
     while True:
         try:
-            choice = input("\nEnter choice (1-2): ").strip()
+            choice = input("\nEnter choice (1-3): ").strip()
             
             if choice == "1":
                 start_multi_agent_system()
@@ -1017,8 +1018,16 @@ def main():
             elif choice == "2":
                 start_demo_mode()
                 break
+            elif choice == "3":
+                print("\n🎓 Starting Educational A2A Protocol Demonstration...")
+                print("📚 This shows the ACTUAL A2A protocol communication!")
+                print("\nRunning: python educational_a2a_demo.py")
+                import subprocess
+                import sys
+                subprocess.run([sys.executable, "educational_a2a_demo.py"])
+                break
             else:
-                print("Please enter 1 or 2")
+                print("Please enter 1, 2, or 3")
         except KeyboardInterrupt:
             print("\nGoodbye!")
             shutdown_all_agents()
