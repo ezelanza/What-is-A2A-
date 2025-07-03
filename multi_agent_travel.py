@@ -133,12 +133,13 @@ registry = AgentRegistry()
 llm = LLMInterface()
 
 class A2AAgent:
-    """Base class for A2A agents"""
+    """Base class for A2A agents with LLM intelligence"""
     
-    def __init__(self, name, port, capabilities):
+    def __init__(self, name, port, capabilities, personality=None):
         self.name = name
         self.port = port
         self.capabilities = capabilities
+        self.personality = personality or f"I am {name}, a helpful AI agent specialized in {', '.join(capabilities)}."
         self.base_url = f"http://localhost:{port}"
         self.logger = logging.getLogger(name)
         self.tasks = {}
@@ -146,6 +147,69 @@ class A2AAgent:
         
         # Register with discovery service
         registry.register(name, self.base_url)
+    
+    def generate_intelligent_response(self, user_message, context_id=None):
+        """Generate intelligent response using LLM based on agent's personality and capabilities"""
+        
+        # Get context from previous conversations
+        context_info = ""
+        if context_id and context_id in self.contexts:
+            context_info = f"Previous conversation context: {self.contexts[context_id][-3:]}"  # Last 3 messages
+        
+        # Build system prompt for this agent
+        system_prompt = f"""You are {self.name}, an intelligent AI agent in an A2A (Agent-to-Agent) system.
+
+YOUR ROLE & PERSONALITY:
+{self.personality}
+
+YOUR CAPABILITIES:
+{', '.join(self.capabilities)}
+
+AVAILABLE PEER AGENTS (you can coordinate with them):
+- TravelAgent: Trip planning, flight booking, hotel booking, coordination
+- CalendarAgent: Schedule management, availability checking, appointment booking  
+- ExpenseAgent: Budget analysis, expense tracking, financial approval
+- WeatherAgent: Weather forecasts, packing advice, climate information
+
+COORDINATION RULES:
+- If you need information from other agents, mention that you'll coordinate with them
+- Be specific about what information you'll gather and from which agents
+- Always stay in character as {self.name}
+- Provide helpful, professional, and contextual responses
+- If a request is outside your expertise, suggest which agent could help
+
+RESPONSE STYLE:
+- Be natural and conversational
+- Show intelligence and understanding
+- Provide specific, actionable information when possible
+- If you need to coordinate with other agents, explain your process
+
+{context_info}
+
+Please respond to the user's message as {self.name}."""
+
+        try:
+            response = llm.query_llm(user_message, system_prompt)
+            
+            # Store in context for future reference
+            if context_id:
+                if context_id not in self.contexts:
+                    self.contexts[context_id] = []
+                self.contexts[context_id].append({
+                    "user": user_message,
+                    "agent": response,
+                    "timestamp": time.time()
+                })
+            
+            return response
+            
+        except Exception as e:
+            self.logger.warning(f"LLM response failed: {e} - Using fallback")
+            return self._fallback_response(user_message)
+    
+    def _fallback_response(self, user_message):
+        """Simple fallback response if LLM is unavailable"""
+        return f"Hello! I'm {self.name}. I specialize in {', '.join(self.capabilities)}. You said: '{user_message}' - I'd be happy to help with that!"
     
     def discover_agent(self, agent_name):
         """Discover another agent's endpoint"""
@@ -238,244 +302,104 @@ class A2AAgent:
         }
 
 class TravelAgent(A2AAgent):
-    """Travel Agent - Coordinates trip planning"""
+    """Travel Agent - Coordinates trip planning using LLM intelligence"""
     
     def __init__(self):
+        personality = """I am TravelAgent, a sophisticated travel coordination specialist. I excel at:
+        
+• Planning comprehensive trips with attention to detail
+• Coordinating with CalendarAgent for optimal scheduling
+• Working with ExpenseAgent for budget-conscious planning
+• Consulting WeatherAgent for destination-appropriate recommendations
+• Finding the best flights, hotels, and experiences
+• Managing complex multi-city itineraries
+• Understanding travel preferences and requirements
+
+I approach each travel request with enthusiasm and expertise, always considering the traveler's needs, budget, timeline, and preferences. I proactively coordinate with other agents to ensure every aspect is covered."""
+
         super().__init__("TravelAgent", 8001, [
             "trip_planning", "flight_booking", "hotel_booking", "coordination"
-        ])
+        ], personality)
     
     def process_message(self, message_text, context_id=None):
-        """Process travel-related requests"""
-        text = message_text.lower()
-        
-        if "book trip" in text or "plan trip" in text:
-            return self.plan_trip(message_text, context_id)
-        elif "hello" in text or "hi" in text:
-            return "Hello! I'm the Travel Agent. I can help you plan and book trips. Try asking me to 'book a trip to London for 3 days'."
-        else:
-            return f"I'm the Travel Agent. I can help with trip planning and booking. You said: '{message_text}'"
-    
-    def plan_trip(self, request, context_id):
-        """Coordinate a multi-agent trip planning workflow"""
-        self.logger.info("🛫 Starting trip planning coordination...")
-        
-        # Step 1: Check calendar availability
-        calendar_response = self.send_message_to_agent(
-            "CalendarAgent", 
-            "What dates are available for a 3-day trip in the next month?",
-            context_id
-        )
-        
-        if "error" in calendar_response:
-            return "Sorry, I couldn't reach the Calendar Agent to check availability."
-        
-        # Extract dates from calendar response
-        available_dates = "April 15-17 or May 8-10"  # Simplified for demo
-        
-        # Step 2: Check budget with Expense Agent
-        expense_response = self.send_message_to_agent(
-            "ExpenseAgent",
-            "What's the available budget for a London business trip? Estimated cost: $2000",
-            context_id
-        )
-        
-        # Step 3: Get weather information
-        weather_response = self.send_message_to_agent(
-            "WeatherAgent",
-            "What's the weather forecast for London in the next month?",
-            context_id
-        )
-        
-        # Compile comprehensive trip plan
-        trip_plan = f"""
-TRIP PLANNING COMPLETE
-
-AVAILABILITY (from Calendar Agent):
-Available dates: {available_dates}
-
-BUDGET APPROVAL (from Expense Agent):
-{self.extract_response_text(expense_response)}
-
-WEATHER FORECAST (from Weather Agent):
-{self.extract_response_text(weather_response)}
-
-RECOMMENDED TRIP:
-- Destination: London
-- Dates: April 15-17, 2024
-- Budget: $2000 (approved)
-- Flight: $800 (direct)
-- Hotel: $400/night × 3 nights = $1200
-- Weather: Pack business attire and light jacket
-
-All agents have coordinated successfully! Ready to proceed with booking.
-        """
-        
-        return trip_plan.strip()
-    
-    def extract_response_text(self, agent_response):
-        """Extract text from agent response"""
-        if "error" in agent_response:
-            return f"Error: {agent_response['error']}"
-        
-        # Look for agent response in history
-        history = agent_response.get("history", [])
-        for message in reversed(history):
-            if message.get("role") == "agent":
-                for part in message.get("parts", []):
-                    if part.get("kind") == "text":
-                        return part.get("text", "No response")
-        
-        return "No response received"
+        """Process travel-related requests using LLM intelligence"""
+        # Always use LLM for intelligent response
+        return self.generate_intelligent_response(message_text, context_id)
 
 class CalendarAgent(A2AAgent):
-    """Calendar Agent - Manages schedules and availability"""
+    """Calendar Agent - Manages schedules and availability using LLM intelligence"""
     
     def __init__(self):
+        personality = """I am CalendarAgent, a meticulous schedule management specialist. My expertise includes:
+
+• Analyzing calendar availability with precision
+• Identifying optimal time slots for travel and meetings
+• Managing complex scheduling conflicts intelligently
+• Coordinating with TravelAgent for trip timing
+• Understanding time zone considerations
+• Providing realistic scheduling recommendations
+• Blocking calendars and sending invitations
+• Considering work-life balance in scheduling
+
+I have access to comprehensive calendar data and can provide detailed availability analysis. I'm particularly good at finding creative solutions for challenging scheduling conflicts and optimizing time for maximum productivity."""
+
         super().__init__("CalendarAgent", 8002, [
             "schedule_management", "availability_checking", "calendar_blocking"
-        ])
+        ], personality)
     
     def process_message(self, message_text, context_id=None):
-        """Process calendar-related requests"""
-        text = message_text.lower()
-        
-        if "available" in text or "dates" in text or "schedule" in text:
-            return self.check_availability(message_text)
-        elif "block" in text or "reserve" in text:
-            return self.block_calendar(message_text)
-        elif "hello" in text or "hi" in text:
-            return "Hello! I'm the Calendar Agent. I manage schedules and check availability for trips and meetings."
-        else:
-            return f"I'm the Calendar Agent. I can check availability and manage schedules. You asked: '{message_text}'"
-    
-    def check_availability(self, request):
-        """Check calendar availability"""
-        # Simulate calendar checking
-        available_slots = [
-            {
-                "start": "2024-04-15",
-                "end": "2024-04-17", 
-                "conflicts": "none",
-                "confidence": "high"
-            },
-            {
-                "start": "2024-05-08",
-                "end": "2024-05-10",
-                "conflicts": "minor meeting (moveable)",
-                "confidence": "medium"
-            }
-        ]
-        
-        response = "CALENDAR AVAILABILITY REPORT:\n\n"
-        for slot in available_slots:
-            response += f"AVAILABLE: {slot['start']} to {slot['end']}\n"
-            response += f"   Conflicts: {slot['conflicts']}\n"
-            response += f"   Confidence: {slot['confidence']}\n\n"
-        
-        response += "Recommendation: April 15-17 looks perfect with no conflicts!"
-        return response
-    
-    def block_calendar(self, request):
-        """Block calendar for confirmed trips"""
-        return "Calendar blocked successfully. Meeting invites sent to stakeholders."
+        """Process calendar-related requests using LLM intelligence"""
+        return self.generate_intelligent_response(message_text, context_id)
 
 class ExpenseAgent(A2AAgent):
-    """Expense Agent - Handles budgets and cost validation"""
+    """Expense Agent - Handles budgets and cost validation using LLM intelligence"""
     
     def __init__(self):
+        personality = """I am ExpenseAgent, a thorough financial analysis specialist. My capabilities include:
+
+• Comprehensive budget analysis and allocation tracking
+• Corporate policy compliance validation
+• Cost optimization recommendations
+• Expense approval workflows and documentation
+• Financial risk assessment for travel and projects
+• Multi-currency and international expense management
+• Real-time budget monitoring and alerts
+• Integration with corporate financial systems
+
+I approach every financial request with attention to detail, ensuring compliance while finding cost-effective solutions. I understand both corporate policies and practical travel needs, helping balance fiscal responsibility with business objectives."""
+
         super().__init__("ExpenseAgent", 8003, [
             "budget_management", "expense_tracking", "policy_validation"
-        ])
+        ], personality)
     
     def process_message(self, message_text, context_id=None):
-        """Process expense-related requests"""
-        text = message_text.lower()
-        
-        if "budget" in text or "cost" in text or "expense" in text:
-            return self.check_budget(message_text)
-        elif "approve" in text:
-            return self.approve_expense(message_text)
-        elif "hello" in text or "hi" in text:
-            return "Hello! I'm the Expense Agent. I manage budgets, validate costs, and ensure policy compliance."
-        else:
-            return f"I'm the Expense Agent. I handle budget and expense management. You mentioned: '{message_text}'"
-    
-    def check_budget(self, request):
-        """Check budget availability and policy compliance"""
-        # Extract cost from request (simplified)
-        estimated_cost = 2000  # Extracted from request
-        
-        budget_analysis = f"""
-BUDGET ANALYSIS REPORT:
-
-Available Budget: $5,000
-Estimated Cost: ${estimated_cost}
-Status: APPROVED
-
-Policy Compliance:
-  • Within daily limits ($300/day)
-  • Business class flight approved
-  • 4-star hotel approved
-  • Expense category: Business Travel
-
-Recommendations:
-  • Consider business class upgrade (+$300)
-  • Remaining budget after trip: ${5000 - estimated_cost}
-  • Pre-approval code: BT-2024-0415
-        """
-        return budget_analysis.strip()
-    
-    def approve_expense(self, request):
-        """Approve expense requests"""
-        return "Expense approved! Reference number: EXP-2024-0415-001"
+        """Process expense-related requests using LLM intelligence"""
+        return self.generate_intelligent_response(message_text, context_id)
 
 class WeatherAgent(A2AAgent):
-    """Weather Agent - Provides weather forecasts and recommendations"""
+    """Weather Agent - Provides weather forecasts and recommendations using LLM intelligence"""
     
     def __init__(self):
+        personality = """I am WeatherAgent, a comprehensive meteorological and travel advisory specialist. My expertise covers:
+
+• Detailed weather forecasting and climate analysis
+• Location-specific packing recommendations and travel advice
+• Seasonal travel planning and optimal timing suggestions
+• Weather-related risk assessment for travel plans
+• Climate considerations for different activities and destinations
+• Integration with travel planning for weather-appropriate itineraries
+• Real-time weather monitoring and alerts
+• Historical weather data analysis for planning
+
+I provide accurate, practical weather information that helps travelers make informed decisions. I consider not just the forecast, but also how weather impacts travel experiences, activities, and packing needs."""
+
         super().__init__("WeatherAgent", 8004, [
             "weather_forecasting", "travel_recommendations", "packing_advice"
-        ])
+        ], personality)
     
     def process_message(self, message_text, context_id=None):
-        """Process weather-related requests"""
-        text = message_text.lower()
-        
-        if "weather" in text or "forecast" in text:
-            return self.get_weather_forecast(message_text)
-        elif "pack" in text or "clothing" in text:
-            return self.get_packing_advice(message_text)
-        elif "hello" in text or "hi" in text:
-            return "Hello! I'm the Weather Agent. I provide weather forecasts and travel packing recommendations."
-        else:
-            return f"I'm the Weather Agent. I can help with weather forecasts and packing advice. You asked: '{message_text}'"
-    
-    def get_weather_forecast(self, request):
-        """Get weather forecast for destination"""
-        # Simulate weather API call
-        forecast = f"""
-LONDON WEATHER FORECAST:
-
-April 15-17, 2024:
-  Day 1: Partly cloudy, 16°C (61°F)
-  Day 2: Light rain, 14°C (57°F) 
-  Day 3: Sunny, 18°C (64°F)
-
-PACKING RECOMMENDATIONS:
-  • Light waterproof jacket (rain expected)
-  • Business attire for meetings
-  • Comfortable walking shoes
-  • Umbrella (essential for Day 2)
-  • Layers (temperatures vary)
-
-Overall: Typical spring weather in London. Pack for mild temperatures and possible rain.
-        """
-        return forecast.strip()
-    
-    def get_packing_advice(self, request):
-        """Provide packing recommendations"""
-        return "Pack layers, waterproof jacket, business attire, and comfortable shoes for London spring weather!"
+        """Process weather-related requests using LLM intelligence"""
+        return self.generate_intelligent_response(message_text, context_id)
 
 class A2AHandler(BaseHTTPRequestHandler):
     """HTTP handler for A2A protocol requests"""

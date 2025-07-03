@@ -23,15 +23,16 @@ This is a complete working implementation of the **A2A (Agent-to-Agent) Protocol
 
 ## 🧠 LLM-Powered Intelligence (NEW!)
 
-**Revolutionary Natural Language Understanding**
+**Revolutionary End-to-End AI Intelligence**
 
-This implementation now uses **real LLM intelligence** instead of hardcoded keyword matching! The system can:
+This implementation now uses **real LLM intelligence throughout the entire system** - no hardcoded responses anywhere! Every component is AI-powered:
 
-- **Understand natural speech** - No need for specific keywords like "plan trip" or "check calendar"
-- **Intelligent routing** - Uses AI to determine which agents should collaborate
-- **Dynamic coordination** - Decides in real-time whether multi-agent coordination is needed
-- **Context awareness** - Understands complex requests and ambiguous language
-- **True A2A spirit** - No hidden supervisors or hardcoded routing rules!
+- **Intelligent Routing** - LLM analyzes user intent and determines agent coordination
+- **Dynamic Agent Responses** - Each agent uses LLM to generate contextual, intelligent responses
+- **Natural Conversation** - No keywords needed, just speak naturally to any agent
+- **Context-Aware Coordination** - Agents understand their roles and coordinate intelligently
+- **Adaptive Personalities** - Each agent has distinct expertise and communication style
+- **True A2A Spirit** - No hardcoded rules, routing, or responses anywhere in the system!
 
 ### LLM Configuration
 
@@ -68,6 +69,69 @@ LLM_CONFIG = {
 
 **Fallback System:** If no LLM is available, the system automatically falls back to basic analysis while maintaining functionality.
 
+## 📋 Prerequisites
+
+### Install Ollama (Recommended - Free & Local)
+
+**For macOS:**
+```bash
+# Option 1: Download from website (Easiest)
+# Visit https://ollama.ai/ and download the macOS installer
+
+# Option 2: Using Homebrew
+brew install ollama
+```
+
+**For Linux:**
+```bash
+curl -fsSL https://ollama.ai/install.sh | sh
+```
+
+**For Windows:**
+```bash
+# Download from https://ollama.ai/ and install the Windows version
+```
+
+### Start Ollama and Install Model
+
+```bash
+# Start Ollama server (required for LLM intelligence)
+ollama serve
+
+# In another terminal, install the model
+ollama pull llama3.2:3b
+
+# Test that it's working
+ollama run llama3.2:3b "Hello, are you working?"
+```
+
+**Expected Output:**
+```
+I'm here and ready to help. How can I assist you today?
+```
+
+**Troubleshooting Ollama:**
+If you see connection errors like `Connection refused`, make sure:
+- Ollama is running: `ollama serve` (keep this terminal open)
+- Model is installed: `ollama pull llama3.2:3b`
+- Test connectivity: `curl http://localhost:11434/api/generate -d '{"model":"llama3.2:3b","prompt":"hello","stream":false}'`
+
+### Python Environment
+
+```bash
+# Create virtual environment
+python -m venv a2a_demo
+
+# Activate it
+# On macOS/Linux:
+source a2a_demo/bin/activate
+# On Windows:
+a2a_demo\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
 ### Test LLM Intelligence
 
 ```bash
@@ -80,23 +144,9 @@ This demonstrates how the LLM analyzes natural language requests and makes intel
 
 **Four agents collaborate without a supervisor to plan your trip!**
 
-### Setup Virtual Environment
-
-```bash
-# Create virtual environment
-python -m venv a2a_demo
-
-# Activate it
-# On macOS/Linux:
-source a2a_demo/bin/activate
-# On Windows:
-venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-```
-
 ### Run the Multi-Agent System
+
+**Important:** Make sure you've completed the [Prerequisites](#📋-prerequisites) section first (install Ollama and Python environment).
 
 ```bash
 python multi_agent_travel.py
@@ -172,26 +222,9 @@ python multi_agent_travel.py
 
 ## Quick Start (Simple Client-Server Demo)
 
-### 1. Create Virtual Environment
+**Prerequisites:** Complete the [Prerequisites](#📋-prerequisites) section first.
 
-```bash
-# Create virtual environment
-python -m venv venv
-
-# Activate it
-# On macOS/Linux:
-source venv/bin/activate
-# On Windows:
-venv\Scripts\activate
-```
-
-### 2. Install Dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### 3. Start the Agent Server
+### Start the Agent Server
 
 In one terminal window:
 
@@ -206,7 +239,7 @@ INFO:__main__:Agent Card available at: http://localhost:8000/.well-known/agent.j
 INFO:__main__:A2A endpoint: http://localhost:8000/a2a/v1/
 ```
 
-### 4. Run the Client
+### Run the Client
 
 In another terminal window:
 
